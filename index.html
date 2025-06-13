@@ -209,7 +209,7 @@
                 const res = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`);
                 const data = await res.text();
                 const leaks = data.split('\n').find(h=>h.startsWith(suffix));
-                hibpDiv.innerHTML = leaks ? `💥 Heslo bolo zistené ${leaks.split(':')[1]}-krát.` : '✅ Heslo nebolo odhalené v leakoch.';
+                hibpDiv.innerHTML = leaks ? `💥 Heslo sa objavilo v úniku údajov ${leaks.split(':')[1].trim()}-krát.` : '✅ Heslo nebolo odhalené v úniku údajov.';
             } catch { hibpDiv.innerHTML = '⚠️ Chyba pri kontrole leakov.'; }
 
             [weakpassDiv, hibpDiv, crackDiv].forEach(showFade);
