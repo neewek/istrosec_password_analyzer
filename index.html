@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telekom - Kontrola sily hesla</title>
+    <style>
+        :root {
+            --primary-color: #E20074;
+            --secondary-color: #58595B;
+            --background-color: #FFFFFF;
+            --container-bg-color: #F4F4F4;
+            --text-color: #333333;
+            --success-color: #27AE60;
+            --warning-color: #F1C40F;
+            --error-color: #E74C3C;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 650px;
+            margin: 40px auto;
+            padding: 20px;
+            background-color: var(--background-color);
+            color: var(--text-color);
+        }
+
+        .container {
+            background-color: var(--container-bg-color);
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        h2 {
+            color: var(--primary-color);
+            margin-bottom: 15px;
+        }
+
+        input[type="password"], button {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            border: none;
+        }
+
+        button:hover {
+            background-color: #C70063;
+        }
+
+        .error { color: var(--error-color); }
+
+        .fade {
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        .fade.show { opacity: 1; }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        .progress-bar .fill {
+            height: 100%;
+            width: 0;
+            transition: width 0.5s;
+        }
+
+        .weak { background-color: var(--error-color); }
+        .medium { background-color: var(--warning-color); }
+        .strong { background-color: var(--success-color); }
+
+        a { color: var(--primary-color); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Kontrola sily hesla</h2>
+        <input type="password" id="password1" placeholder="Zadaj heslo" required>
+        <input type="password" id="password2" placeholder="Zopakuj heslo" required>
+        <button onclick="checkPassword()">Skontrolovať heslo</button>
+        <div id="error" class="fade"></div>
+        <div id="weakpass" class="fade"></div>
+        <div id="hibp" class="fade"></div>
+        <div id="crack" class="fade"></div>
+        <div class="progress-bar">
+            <div id="fill-bar" class="fill"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/md5-js@0.0.3/md5.min.js"></script>
+    <script>
+        window.onload = function() {
+            document.getElementById("password1").focus();
+        };
+
+        document.addEventListener("keydown", function(event) {
+            if (event.key === "Enter") checkPassword();
+        });
+
+        function formatTime(seconds) {
+            const units = [["rokov",31536000],["dní",86400],["hodín",3600],["minút",60],["sekúnd",1]];
+            for (let [label, value] of units) {
+                if (seconds >= value) {
+                    return (seconds/value).toFixed(0)+" "+label;
+                }
+            }
+            return seconds.toFixed(2)+" sekúnd";
+        }
+
+        async function checkPassword() {
+            const pass1 = document.getElementById('password1').value;
+            const pass2 = document.getElementById('password2').value;
+            const errorDiv = document.getElementById('error');
+            const weakpassDiv = document.getElementById('weakpass');
+            const hibpDiv = document.getElementById('hibp');
+            const crackDiv = document.getElementById('crack');
+            const fillBar = document.getElementById('fill-bar');
+
+            if (!pass1) {
+                errorDiv.innerHTML = '<p class="error">Prázdne heslo!</p>';
+                showFade(errorDiv);
+                return;
+            }
+
+            if (pass1 !== pass2) {
+                errorDiv.innerHTML = '<p class="error">Heslá sa nezhodujú!</p>';
+                showFade(errorDiv);
+                return;
+            } else {
+                errorDiv.innerHTML = '';
+            }
+
+            let charsetSize = 0;
+            if (/[a-z]/.test(pass1)) charsetSize += 26;
+            if (/[A-Z]/.test(pass1)) charsetSize += 26;
+            if (/[0-9]/.test(pass1)) charsetSize += 10;
+            if (/[^a-zA-Z0-9]/.test(pass1)) charsetSize += 32;
+
+            const combinations = Math.pow(charsetSize, pass1.length);
+            const crackRates = {
+                "Bežný PC": 1e5,
+                "Set grafických kariet": 1e10,
+                "Superpočítač": 1e14,
+                "Kvantový počítač": 1e20
+            };
+
+            let crackHtml = "<strong>⏱️ Odhadovaný čas prelomenia:</strong><ul>";
+            for (let tech in crackRates) {
+                crackHtml += `<li>${tech}: <strong>${formatTime(combinations / crackRates[tech])}</strong></li>`;
+            }
+            crackHtml += "</ul>";
+            crackDiv.innerHTML = crackHtml;
+
+            let strengthPercent = Math.min((Math.log10(combinations)/20)*100,100);
+            fillBar.style.width = strengthPercent + "%";
+            fillBar.className = "fill " + (strengthPercent<30 ? "weak" : strengthPercent<70 ? "medium":"strong");
+
+            // Overenie slabých hesiel
+            const hash = await md5(pass1);
+            try {
+                const prefix = hash.slice(0,6);
+                const res = await fetch(`https://weakpass.com/api/v1/range/${prefix}.json?type=md5`);
+                const data = await res.json();
+                weakpassDiv.innerHTML = data.some(e=>e.hash.toLowerCase()==hash.toLowerCase()) ?
+                    '💥 Heslo nájdené v databáze slabých hesiel!' : '✅ Heslo nie je v databáze slabých hesiel.';
+            } catch { weakpassDiv.innerHTML = '⚠️ Chyba pri kontrole slabých hesiel.'; }
+
+            // Overenie leakov (HIBP)
+            try {
+                const sha1Hash = (await crypto.subtle.digest('SHA-1', new TextEncoder().encode(pass1)));
+                const hashHex = Array.from(new Uint8Array(sha1Hash)).map(b=>b.toString(16).padStart(2,'0')).join('').toUpperCase();
+                const prefix = hashHex.slice(0,5);
+                const suffix = hashHex.slice(5);
+                const res = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`);
+                const data = await res.text();
+                const leaks = data.split('\n').find(h=>h.startsWith(suffix));
+                hibpDiv.innerHTML = leaks ? `💥 Heslo bolo zistené ${leaks.split(':')[1]}-krát.` : '✅ Heslo nebolo odhalené v leakoch.';
+            } catch { hibpDiv.innerHTML = '⚠️ Chyba pri kontrole leakov.'; }
+
+            [weakpassDiv, hibpDiv, crackDiv].forEach(showFade);
+        }
+
+        function showFade(element) { element.classList.add('show'); }
+    </script>
+</body>
+</html>
